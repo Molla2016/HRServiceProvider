@@ -59,10 +59,9 @@ public class EmployeeController {
         return false;
     }
 
-    public boolean update(Employee emp) throws SQLException {
-        //Employee employee = em.find(Employee.class, id);
-        if (emp != null) {
-            em.merge(emp);
+    public boolean update(Employee employee) throws SQLException {
+        if (employee != null) {
+            em.merge(employee);
             return true;
         }
         return false;

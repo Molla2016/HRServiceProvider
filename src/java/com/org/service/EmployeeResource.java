@@ -11,22 +11,21 @@ import javax.ws.rs.core.MediaType;
 import javax.ejb.EJB;
 import com.org.controller.*;
 import java.text.ParseException;
-import javax.ws.rs.FormParam;
 import javax.ws.rs.core.Response;
 import com.org.entity.*;
 import java.sql.SQLException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.List;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.FormParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.PathParam;
-import javax.ws.rs.QueryParam;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-
 
 @Path("employee")
 public class EmployeeResource {
@@ -45,12 +44,11 @@ public class EmployeeResource {
     @Path("create")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response create(@QueryParam("id") String employeeID, @QueryParam("fullname") String employeeFullName,
-            @QueryParam("dob") String dob, @QueryParam("age") String employeeAge, @QueryParam("gender") String employeeGender,
-            @QueryParam("address") String employeeAddress, @QueryParam("department") String depart,
-            @QueryParam("position") String position, @Context HttpServletResponse httpServetResponse) {
-       
-        
+    public Response create(@FormParam("id") String employeeID, @FormParam("fullname") String employeeFullName,
+            @FormParam("dob") String dob, @FormParam("age") String employeeAge, @FormParam("gender") String employeeGender,
+            @FormParam("address") String employeeAddress, @FormParam("department") String depart,
+            @FormParam("position") String position, @Context HttpServletResponse httpServetResponse) {
+
         if (getPosition(position) == -1) {
             throw new RuntimeException("Wong position entered");
         }
@@ -61,7 +59,7 @@ public class EmployeeResource {
             Employee employee = new Employee();
             employee.setEmployeeAddress(employeeAddress);
             employee.setEmployeeAge(Integer.parseInt(employeeAge));
-            employee.setEmployeeDOB(getDate(dob));
+            employee.setEmployeeDOB(new java.sql.Date(setDate(dob).getTime()));
             employee.setEmployeeDepartment(new Department(getDepartment(depart)));
             employee.setEmployeeFullName(employeeFullName);
             employee.setEmployeeID(employeeID);
@@ -73,10 +71,12 @@ public class EmployeeResource {
             if (result == true) {
                 return Response.ok().entity("Entity successfully CREATED").build();
             }
-            return Response.ok("Entity NOT successfully CREATED").entity(result).build();
+
+            return Response.ok().entity("Entity NOT successfully CREATED").build();
 
         } catch (ParseException ex) {
-            return Response.notModified().entity("Unable to complete operation").build();
+            return Response.notModified().entity(ex.getMessage()).build();
+
         } catch (SQLException ex) {
             return Response.notModified().entity(ex.getMessage()).build();
         }
@@ -84,44 +84,44 @@ public class EmployeeResource {
     }
 
     @PUT
-    @Path("update")
+    @Path("update/{empid}")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response update(@QueryParam("id") String employeeID, @QueryParam("fullname") String employeeFullName,
-            @QueryParam("dob") String dob, @QueryParam("age") String employeeAge, @QueryParam("gender") String employeeGender,
-            @QueryParam("address") String employeeAddress, @QueryParam("department") String depart,
-            @QueryParam("position") String position, @Context HttpServletResponse httpServetResponse) {
-        
+    public Response update(
+            @FormParam("id") String employeeID, @FormParam("fullname") String employeeFullName,
+            @FormParam("dob") String dob, @FormParam("age") String employeeAge, @FormParam("gender") String employeeGender,
+            @FormParam("address") String employeeAddress, @FormParam("department") String depart,
+            @FormParam("position") String position, @Context HttpServletResponse httpServetResponse
+    ) {
         if (getPosition(position) == -1) {
             throw new RuntimeException("Wong position entered");
         }
-
         if (getDepartment(depart) == -1) {
             throw new RuntimeException("Wrong Department entered");
         }
-
+        Employee employee = ec.find(employeeID);
         try {
-            Employee employee = ec.find(employeeID);
-            employee.setEmployeeID(employeeID);
+            //employee.setEmployeeID(employeeID);
             employee.setEmployeeAddress(employeeAddress);
             employee.setEmployeeAge(Integer.parseInt(employeeAge));
-            employee.setEmployeeDOB(getDate(dob));
             employee.setEmployeeDepartment(new Department(getDepartment(depart)));
             employee.setEmployeeFullName(employeeFullName);
             employee.setEmployeeLevel(new LevelPosition(getPosition(position)));
             employee.setEmployeeGender(employeeGender);
+            employee.setEmployeeDOB(new java.sql.Date(setDate(dob).getTime()));
 
             boolean result = ec.update(employee);
 
-            if (result) {
+            if (result == true) {
                 return Response.ok().entity("Entity successfully UPDATED ").build();
             }
-            return Response.notModified().entity("Entity NOT successfully UPDATED").build();
+            return Response.ok().entity("Entity NOT successfully UPDATED").build();
 
-        } catch (ParseException ex) {
-            return Response.notModified().entity("Unable to complete operation").build();
         } catch (SQLException ex) {
+            return Response.ok().entity(ex.getMessage()).build();
+        } catch (ParseException ex) {
             return Response.notModified().entity(ex.getMessage()).build();
+
         }
     }
 
@@ -138,13 +138,13 @@ public class EmployeeResource {
             json.put("EmployeeID", employee.getEmployeeID());
             json.put("EmployeeFullName", employee.getEmployeeFullName());
             json.put("EmployeeAge", employee.getEmployeeAge());
-            json.put("EmployeeDOB", employee.getEmployeeDOB());
+            json.put("EmployeeDOB", new java.sql.Date(employee.getEmployeeDOB().getTime()));
             json.put("EmployeeAddress", employee.getEmployeeAddress());
             json.put("EmployeePosition", employee.getEmployeeLevel().getLevelType());
             json.put("EmployeeGender", employee.getEmployeeGender());
             json.put("EmployeeDepartment", employee.getEmployeeDepartment().getDepartmentName());
             array.put(json);
-            
+
         }
         return array.toString();
     }
@@ -161,7 +161,7 @@ public class EmployeeResource {
         json.put("EmployeeID", employee.getEmployeeID());
         json.put("EmployeeFullName", employee.getEmployeeFullName());
         json.put("EmployeeAge", employee.getEmployeeAge());
-        json.put("EmployeeDOB", employee.getEmployeeDOB());
+        json.put("EmployeeDOB", new java.sql.Date(employee.getEmployeeDOB().getTime()));
         json.put("EmployeeAddress", employee.getEmployeeAddress());
         json.put("EmployeePosition", employee.getEmployeeLevel().getLevelType());
         json.put("EmployeeGender", employee.getEmployeeGender());
@@ -194,10 +194,33 @@ public class EmployeeResource {
         return ((Long) q.getSingleResult()).intValue();
     }
 
-    public java.sql.Date getDate(String date) throws ParseException {
-        DateFormat dateFormat = new SimpleDateFormat("yyyy-mm-dd");
-        java.util.Date dateObject = dateFormat.parse(date);
-        return new java.sql.Date(dateObject.getTime());
+    public java.util.Date setDate(String date) throws ParseException {
+        DateFormat dateFormat = new SimpleDateFormat("YYYY-MM-DD");
+        int year = Integer.parseInt(date.substring(0, 4));
+        int month = Integer.parseInt(date.substring(5, 7));
+        int day = Integer.parseInt(date.substring(8, 10));
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.YEAR, year);
+        cal.set(Calendar.MONTH, month - 1);
+        cal.set(Calendar.DAY_OF_MONTH, day);
+        java.util.Date dt = new java.util.Date(cal.getTimeInMillis());
+        dateFormat.format(dt);
+        return dt;
+    }
+
+    public String getDate(java.util.Date date) {
+        try {
+            DateFormat formatter = new SimpleDateFormat("E MMM dd HH:mm:ss Z yyyy"); //Mon Jan 04 00:00:00 CET 1993 
+            java.util.Date myDate = formatter.parse(date.toString());
+            System.out.println(myDate);
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(myDate);
+            String htmlDate = cal.get(Calendar.YEAR) + "-" + (cal.get(Calendar.MONTH) + 1) + "-" + cal.get(Calendar.DAY_OF_MONTH);
+            return htmlDate;
+        } catch (ParseException ex) {
+            System.err.println(ex.getCause());
+            return "";
+        }
     }
 
     public int getPosition(String pos) {
@@ -231,5 +254,4 @@ public class EmployeeResource {
 
         }
     }
-
 }

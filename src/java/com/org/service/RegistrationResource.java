@@ -11,11 +11,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ejb.EJB;
 import com.org.controller.RegistrationController;
 import javax.ws.rs.core.Response;
-import com.org.entity.Registration;
 import com.org.entity.Employee;
-import static com.org.entity.Employee_.registration;
 import com.org.entity.Registration;
-import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +20,7 @@ import java.util.Map;
 import javax.persistence.EntityNotFoundException;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.FormParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.QueryParam;
@@ -47,14 +45,14 @@ public class RegistrationResource {
     @Path("create")
     @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response create(@PathParam("employeeid") String employeeID, @PathParam("email") String email,
-            @PathParam("password") String password, @Context HttpServletResponse httpServetResponse) {
+    public Response create(@FormParam("id") String employeeID, @FormParam("username") String email,
+            @FormParam("password") String password, @Context HttpServletResponse httpServetResponse) {
 
         try {
-            byte[] salt = RegistrationController.getSalt();
+            //byte[] salt = RegistrationController.getSalt();
             Registration registration = new Registration();
             registration.setEmail(email);
-            registration.setPassword(rc.getEncrptedPassword(password, salt));
+            registration.setPassword(rc.encryptPassword(password));
             registration.setEmployeeID(new Employee(employeeID));
 
             boolean result = rc.create(registration);
@@ -62,12 +60,10 @@ public class RegistrationResource {
             if (result == true) {
                 return Response.ok().entity("Entity successfully CREATED").build();
             }
-            return Response.ok("Entity NOT successfully CREATED").entity(result).build();
+            return Response.ok().entity("Entity NOT successfully CREATED").build();
 
         } catch (SQLException ex) {
-            return Response.notModified().entity(ex.getMessage()).build();
-        } catch (NoSuchAlgorithmException ex) {
-            return Response.notModified().entity(ex.getMessage()).build();
+            return Response.ok().entity(ex.getCause()).build();
         }
 
     }
@@ -76,12 +72,10 @@ public class RegistrationResource {
     @Path("update")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response update(@QueryParam("employeeid") String employeeID, @QueryParam("email") String email,
-            @QueryParam("password") String password, @Context HttpServletResponse httpServetResponse) {
+    public Response update(@FormParam("id") String employeeID, @FormParam("username") String email,
+            @FormParam("password") String password, @Context HttpServletResponse httpServetResponse) {
 
         try {
-            byte[] salt = RegistrationController.getSalt();
-
             // method used to retrieve registration id
             List<Registration> users = rc.findAll();
             if (users.isEmpty()) {
@@ -101,19 +95,17 @@ public class RegistrationResource {
 
             Registration registration = rc.find(id);
             registration.setEmail(email);
-            registration.setPassword(rc.getEncrptedPassword(password, salt));
+            registration.setPassword(rc.encryptPassword(password));
             registration.setEmployeeID(new Employee(employeeID));
             boolean result = rc.update(registration);
 
             if (result) {
                 return Response.ok().entity("Entity successfully UPDATED ").build();
             }
-            return Response.notModified().entity("Entity NOT successfully UPDATED").build();
+            return Response.ok().entity("Entity NOT successfully UPDATED").build();
 
         } catch (SQLException ex) {
-            return Response.notModified().entity(ex.getMessage()).build();
-        } catch (NoSuchAlgorithmException ex) {
-            return Response.notModified().entity(ex.getMessage()).build();
+            return Response.ok().entity(ex.getMessage()).build();
         }
     }
 
@@ -122,15 +114,15 @@ public class RegistrationResource {
     public String findAllEntity() throws JSONException {
         List<Registration> list = rc.findAll();
         if (list.isEmpty()) {
-            throw new RuntimeException("Empty Entity list");
+            throw new RuntimeException("Entity list is empty");
         }
         JSONArray array = new JSONArray();
         for (Registration registration : list) {
             JSONObject json = new JSONObject();
             json.put("EmployeeID", registration.getEmployeeID().getEmployeeID());
             json.put("Email", registration.getEmail());
+            json.put("Password", registration.getPassword());
             array.put(json);
-            //return json.toString();
 
         }
         return array.toString();
@@ -149,24 +141,25 @@ public class RegistrationResource {
         for (Registration register : users) {
             collection.put(register.getEmail(), register.getRegID());
         }
-        int ids = 0;
+        int id = 0;
         if (collection.containsKey(email)) {
-            ids = collection.get(email);
+            id = collection.get(email);
         }
 
-        Registration registration = rc.find(ids);
+        Registration registration = rc.find(id);
         if (registration == null) {
             throw new RuntimeException("Empty Entity");
         }
         JSONObject json = new JSONObject();
-        json.put("EmployeeID", registration.getEmployeeID());
+        json.put("EmployeeID", registration.getEmployeeID().getEmployeeID());
         json.put("Email", registration.getEmail());
+        json.put("Password", registration.getPassword());
 
         return json.toString();
     }
 
     @DELETE
-    @Path("remove/{id}")
+    @Path("{id}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response remove(@PathParam("id") String email) {
 
@@ -179,15 +172,12 @@ public class RegistrationResource {
         for (Registration register : users) {
             collection.put(register.getEmail(), register.getRegID());
         }
-        int ids = 0;
+        int id = 0;
         if (collection.containsKey(email)) {
-            ids = collection.get(email);
+            id = collection.get(email);
         }
 
-        if (rc.getEntityManager().find(Registration.class, ids) == null) {
-            throw new RuntimeException("Entity is empty");//you can use a stuctured error message to achieve this
-        }
-        boolean result = rc.remove(ids);
+        boolean result = rc.remove(id);
         if (result) {
             return Response.ok().entity("Entity successfully REMOVE").build();
         }
@@ -204,5 +194,4 @@ public class RegistrationResource {
         javax.persistence.Query q = rc.getEntityManager().createQuery(cq);
         return ((Long) q.getSingleResult()).intValue();
     }
-
 }
